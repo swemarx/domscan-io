@@ -12,42 +12,44 @@ import (
 	"net/url"
 )
 
-var fileName string = "/usr/share/dict/words"
+// Created ./words by running "cat /usr/share/dict/words | tr 'A-Z' 'a-z' | uniq > words"
+//var fileName string = "/usr/share/dict/words"
+var fileName string = "./words"
 var tldUrl string = "http://www.nic.io/cgi-bin/whois"
-var successMsg string = "Whois Search Successful"
 var failureMsg string = "DomainNotFound"
+var reservedMsg string = "Reserved Auction"
+var successMsg string = "Whois Search Successful"
 
 // Return == 0: available
-// Return == 1: occupied
-// Return == 2: error occurred
+// Return == 1: reserved
+// Return == 2: occupied
+// Return == 3: error occurred
 func lookup(domain string) int {
-		return 0
 		formData := url.Values{}
 		formData.Set("query", domain)
 
 		resp, err := http.PostForm(tldUrl, formData)
 		if err != nil {
 			fmt.Printf("ERROR: could not query TLD for domain %s\n", domain)
-			os.Exit(1)
+			return 3
 		}
 
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
 			fmt.Printf("ERROR: could not read response body\n")
-			os.Exit(1)
+			return 3
 		}
 
 		resp.Body.Close()
 
-		if strings.Contains(string(body), successMsg) {
-			//fmt.Println("AVAILABLE")
+		if strings.Contains(string(body), failureMsg) {
 			return 0
-		} else if strings.Contains(string(body), failureMsg) {
-			//fmt.Println("OCCUPIED")
+		} else if strings.Contains(string(body), reservedMsg) {
 			return 1
-		} else {
-			//fmt.Println("UNKNOWN!")
+		} else if strings.Contains(string(body), successMsg) {
 			return 2
+		} else {
+			return 3
 		}
 }
 
@@ -75,7 +77,8 @@ func main() {
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
-		if len(scanner.Text()) > 4 {
+		l := len(scanner.Text())
+		if l < 3 || l > 4 {
 			continue
 		}
 
@@ -86,6 +89,8 @@ func main() {
 		if result == 0 {
 			fmt.Println("AVAILABLE")
 		} else if result == 1 {
+			fmt.Println("RESERVED")
+		} else if result == 2 {
 			fmt.Println("OCCUPIED")
 		} else {
 			fmt.Println("ERROR OCCURRED")
